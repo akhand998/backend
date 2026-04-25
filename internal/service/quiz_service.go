@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/Amanyd/backend/internal/domain"
 	"github.com/Amanyd/backend/internal/infra/nats"
@@ -15,14 +16,32 @@ type QuizService struct {
 	quizzes port.QuizRepository
 	courses port.CourseRepository
 	queue   port.MessageQueue
+	cache   port.Cache
 }
 
-func NewQuizService(quizzes port.QuizRepository, courses port.CourseRepository, queue port.MessageQueue) *QuizService {
-	return &QuizService{quizzes: quizzes, courses: courses, queue: queue}
+func NewQuizService(quizzes port.QuizRepository, courses port.CourseRepository, queue port.MessageQueue, cache port.Cache) *QuizService {
+	return &QuizService{quizzes: quizzes, courses: courses, queue: queue, cache: cache}
 }
 
 func (s *QuizService) ListByCourse(ctx context.Context, courseID uuid.UUID) ([]domain.Quiz, error) {
-	return s.quizzes.ListQuizzesByCourse(ctx, courseID)
+	key := "quizzes:course:" + courseID.String()
+
+	if cached, err := s.cache.Get(ctx, key); err == nil {
+		var quizzes []domain.Quiz
+		if json.Unmarshal([]byte(cached), &quizzes) == nil {
+			return quizzes, nil
+		}
+	}
+
+	quizzes, err := s.quizzes.ListQuizzesByCourse(ctx, courseID)
+	if err != nil {
+		return nil, err
+	}
+
+	if data, err := json.Marshal(quizzes); err == nil {
+		s.cache.Set(ctx, key, string(data), 5*time.Minute)
+	}
+	return quizzes, nil
 }
 
 type QuizWithQuestions struct {
@@ -31,6 +50,15 @@ type QuizWithQuestions struct {
 }
 
 func (s *QuizService) GetQuiz(ctx context.Context, quizID uuid.UUID) (*QuizWithQuestions, error) {
+	key := "quiz:" + quizID.String()
+
+	if cached, err := s.cache.Get(ctx, key); err == nil {
+		var result QuizWithQuestions
+		if json.Unmarshal([]byte(cached), &result) == nil {
+			return &result, nil
+		}
+	}
+
 	quiz, err := s.quizzes.GetQuizByID(ctx, quizID)
 	if err != nil {
 		return nil, err
@@ -41,7 +69,11 @@ func (s *QuizService) GetQuiz(ctx context.Context, quizID uuid.UUID) (*QuizWithQ
 		return nil, err
 	}
 
-	return &QuizWithQuestions{Quiz: *quiz, Questions: questions}, nil
+	result := &QuizWithQuestions{Quiz: *quiz, Questions: questions}
+	if data, err := json.Marshal(result); err == nil {
+		s.cache.Set(ctx, key, string(data), 10*time.Minute)
+	}
+	return result, nil
 }
 
 func (s *QuizService) StartAttempt(ctx context.Context, quizID, userID uuid.UUID) (*domain.Attempt, error) {
@@ -103,7 +135,7 @@ func (s *QuizService) FinishAttempt(ctx context.Context, attemptID uuid.UUID) (*
 		score = float64(correct) / float64(total) * 100
 	}
 
-	now := attempt.StartedAt // will be overwritten
+	now := attempt.StartedAt
 	attempt.Score = score
 	attempt.Total = total
 	attempt.EndedAt = &now
@@ -157,6 +189,9 @@ func (s *QuizService) ResetQuiz(ctx context.Context, quizID, instructorID uuid.U
 	if err := s.quizzes.UpdateQuizStatus(ctx, quizID, domain.QuizGenerating); err != nil {
 		return err
 	}
+
+	s.cache.Delete(ctx, "quiz:"+quizID.String())
+	s.cache.Delete(ctx, "quizzes:course:"+course.ID.String())
 
 	payload, err := json.Marshal(map[string]any{
 		"course_id":    course.ID.String(),

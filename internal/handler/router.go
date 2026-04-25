@@ -1,10 +1,12 @@
 package handler
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/Amanyd/backend/internal/config"
 	"github.com/Amanyd/backend/internal/domain"
+	redisinfra "github.com/Amanyd/backend/internal/infra/redis"
 	"github.com/Amanyd/backend/internal/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -21,6 +23,8 @@ func NewRouter(
 	chatH *ChatHandler,
 	analytH *AnalyticsHandler,
 	healthH *HealthHandler,
+	tusH http.Handler,
+	rl *redisinfra.RateLimiter,
 	cfg *config.Config,
 	log *zap.Logger,
 ) *chi.Mux {
@@ -33,9 +37,9 @@ func NewRouter(
 	r.Use(middleware.Timeout(30 * time.Second))
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"*"},
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
-		ExposedHeaders:   []string{"Link"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "Tus-Resumable", "Upload-Length", "Upload-Metadata", "Upload-Offset"},
+		ExposedHeaders:   []string{"Link", "Location", "Tus-Resumable", "Upload-Offset", "Upload-Length"},
 		AllowCredentials: true,
 		MaxAge:           300,
 	}))
@@ -47,6 +51,7 @@ func NewRouter(
 
 	r.Group(func(r chi.Router) {
 		r.Use(JWTAuthMiddleware(cfg.JWT.JWTAccessSecret))
+		r.Use(RateLimitMiddleware(rl, 60, 10))
 
 		r.Get("/api/v1/users/me", userH.Me)
 
@@ -80,8 +85,7 @@ func NewRouter(
 			r.Put("/api/v1/lessons/{lessonId}", lessonH.Update)
 			r.Delete("/api/v1/lessons/{lessonId}", lessonH.Delete)
 
-			r.Post("/api/v1/lessons/{lessonId}/files/upload", fileH.InitUpload)
-			r.Post("/api/v1/files/{fileId}/confirm", fileH.ConfirmUpload)
+			r.Handle("/api/v1/files/tus/*", http.StripPrefix("/api/v1/files/tus", tusH))
 			r.Post("/api/v1/quizzes/{quizId}/reset", quizH.Reset)
 
 			r.Get("/api/v1/analytics", analytH.Overview)

@@ -16,6 +16,7 @@ import (
 	"github.com/Amanyd/backend/internal/infra/postgres/migrations"
 	raginfra "github.com/Amanyd/backend/internal/infra/rag"
 	redisinfra "github.com/Amanyd/backend/internal/infra/redis"
+	tusinfra "github.com/Amanyd/backend/internal/infra/tus"
 	"github.com/Amanyd/backend/internal/service"
 	"github.com/Amanyd/backend/internal/worker"
 	"github.com/Amanyd/backend/pkg/logger"
@@ -79,14 +80,27 @@ func main() {
 	storage := minioinfra.NewStorage(minioClient, cfg.MinIO.MinIOBucket)
 	queue := natsinfra.NewPublisher(js)
 	ragClient := raginfra.NewRAGClient(cfg.RAG.RAGBaseUrl, cfg.RAG.RAGInternalToken)
-	_ = redisinfra.NewCache(rdb)
+	cache := redisinfra.NewCache(rdb)
+	rateLimiter := redisinfra.NewRateLimiter(rdb)
+
+	// TUS handler
+	tusH, err := tusinfra.NewTUSHandler(cfg.MinIO, tusinfra.TUSDeps{
+		Files:   fileRepo,
+		Lessons: lessonRepo,
+		Courses: courseRepo,
+		Queue:   queue,
+		Bucket:  cfg.MinIO.MinIOBucket,
+	}, log)
+	if err != nil {
+		log.Fatal("tus handler", zap.Error(err))
+	}
 
 	// Services
 	userSvc := service.NewUserService(userRepo, cfg.JWT)
-	courseSvc := service.NewCourseService(courseRepo, lessonRepo)
-	fileSvc := service.NewFileService(fileRepo, lessonRepo, courseRepo, storage, queue, cfg.MinIO.MinIOBucket)
+	courseSvc := service.NewCourseService(courseRepo, lessonRepo, cache)
+	fileSvc := service.NewFileService(fileRepo, storage, cache)
 	chatSvc := service.NewChatService(chatRepo, courseRepo, userRepo, ragClient)
-	quizSvc := service.NewQuizService(quizRepo, courseRepo, queue)
+	quizSvc := service.NewQuizService(quizRepo, courseRepo, queue, cache)
 	analyticsSvc := service.NewAnalyticsService(analyticsRepo)
 
 	// Handlers
@@ -99,7 +113,7 @@ func main() {
 	analytH := handler.NewAnalyticsHandler(analyticsSvc)
 	healthH := handler.NewHealthHandler()
 
-	router := handler.NewRouter(userH, courseH, lessonH, fileH, quizH, chatH, analytH, healthH, cfg, log)
+	router := handler.NewRouter(userH, courseH, lessonH, fileH, quizH, chatH, analytH, healthH, tusH, rateLimiter, cfg, log)
 
 	// Workers
 	workerCtx, workerCancel := context.WithCancel(ctx)

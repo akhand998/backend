@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/Amanyd/backend/internal/domain"
 	"github.com/Amanyd/backend/internal/port"
@@ -12,10 +14,11 @@ import (
 type CourseService struct {
 	courses port.CourseRepository
 	lessons port.LessonRepository
+	cache   port.Cache
 }
 
-func NewCourseService(courses port.CourseRepository, lessons port.LessonRepository) *CourseService {
-	return &CourseService{courses: courses, lessons: lessons}
+func NewCourseService(courses port.CourseRepository, lessons port.LessonRepository, cache port.Cache) *CourseService {
+	return &CourseService{courses: courses, lessons: lessons, cache: cache}
 }
 
 func (s *CourseService) Create(ctx context.Context, title, desc, rank string, instructorID uuid.UUID) (*domain.Course, error) {
@@ -28,15 +31,50 @@ func (s *CourseService) Create(ctx context.Context, title, desc, rank string, in
 	if err := s.courses.Create(ctx, course); err != nil {
 		return nil, err
 	}
+	s.cache.Delete(ctx, "courses:rank:"+rank)
 	return course, nil
 }
 
 func (s *CourseService) GetByID(ctx context.Context, courseID uuid.UUID) (*domain.Course, error) {
-	return s.courses.GetByID(ctx, courseID)
+	key := "course:" + courseID.String()
+
+	if cached, err := s.cache.Get(ctx, key); err == nil {
+		var course domain.Course
+		if json.Unmarshal([]byte(cached), &course) == nil {
+			return &course, nil
+		}
+	}
+
+	course, err := s.courses.GetByID(ctx, courseID)
+	if err != nil {
+		return nil, err
+	}
+
+	if data, err := json.Marshal(course); err == nil {
+		s.cache.Set(ctx, key, string(data), 10*time.Minute)
+	}
+	return course, nil
 }
 
 func (s *CourseService) ListByRank(ctx context.Context, rank string) ([]domain.Course, error) {
-	return s.courses.ListByRank(ctx, rank)
+	key := "courses:rank:" + rank
+
+	if cached, err := s.cache.Get(ctx, key); err == nil {
+		var courses []domain.Course
+		if json.Unmarshal([]byte(cached), &courses) == nil {
+			return courses, nil
+		}
+	}
+
+	courses, err := s.courses.ListByRank(ctx, rank)
+	if err != nil {
+		return nil, err
+	}
+
+	if data, err := json.Marshal(courses); err == nil {
+		s.cache.Set(ctx, key, string(data), 5*time.Minute)
+	}
+	return courses, nil
 }
 
 func (s *CourseService) ListByInstructor(ctx context.Context, instructorID uuid.UUID) ([]domain.Course, error) {
@@ -52,11 +90,18 @@ func (s *CourseService) Update(ctx context.Context, courseID, instructorID uuid.
 		return nil, domain.ErrForbidden
 	}
 
+	oldRank := course.Rank
 	course.Title = title
 	course.Description = desc
 	course.Rank = rank
 	if err := s.courses.Update(ctx, course); err != nil {
 		return nil, err
+	}
+
+	s.cache.Delete(ctx, "course:"+courseID.String())
+	s.cache.Delete(ctx, "courses:rank:"+oldRank)
+	if rank != oldRank {
+		s.cache.Delete(ctx, "courses:rank:"+rank)
 	}
 	return course, nil
 }
@@ -69,7 +114,12 @@ func (s *CourseService) Delete(ctx context.Context, courseID, instructorID uuid.
 	if course.InstructorID != instructorID {
 		return domain.ErrForbidden
 	}
-	return s.courses.Delete(ctx, courseID)
+	if err := s.courses.Delete(ctx, courseID); err != nil {
+		return err
+	}
+	s.cache.Delete(ctx, "course:"+courseID.String())
+	s.cache.Delete(ctx, "courses:rank:"+course.Rank)
+	return nil
 }
 
 // Lesson methods
@@ -87,11 +137,29 @@ func (s *CourseService) CreateLesson(ctx context.Context, courseID, instructorID
 	if err := s.lessons.Create(ctx, lesson); err != nil {
 		return nil, err
 	}
+	s.cache.Delete(ctx, "lessons:course:"+courseID.String())
 	return lesson, nil
 }
 
 func (s *CourseService) ListLessons(ctx context.Context, courseID uuid.UUID) ([]domain.Lesson, error) {
-	return s.lessons.ListByCourse(ctx, courseID)
+	key := "lessons:course:" + courseID.String()
+
+	if cached, err := s.cache.Get(ctx, key); err == nil {
+		var lessons []domain.Lesson
+		if json.Unmarshal([]byte(cached), &lessons) == nil {
+			return lessons, nil
+		}
+	}
+
+	lessons, err := s.lessons.ListByCourse(ctx, courseID)
+	if err != nil {
+		return nil, err
+	}
+
+	if data, err := json.Marshal(lessons); err == nil {
+		s.cache.Set(ctx, key, string(data), 5*time.Minute)
+	}
+	return lessons, nil
 }
 
 func (s *CourseService) UpdateLesson(ctx context.Context, lessonID, instructorID uuid.UUID, title string, orderIdx int) (*domain.Lesson, error) {
@@ -108,6 +176,7 @@ func (s *CourseService) UpdateLesson(ctx context.Context, lessonID, instructorID
 	if err := s.lessons.Update(ctx, lesson); err != nil {
 		return nil, err
 	}
+	s.cache.Delete(ctx, "lessons:course:"+lesson.CourseID.String())
 	return lesson, nil
 }
 
@@ -119,7 +188,11 @@ func (s *CourseService) DeleteLesson(ctx context.Context, lessonID, instructorID
 	if err := s.verifyOwnership(ctx, lesson.CourseID, instructorID); err != nil {
 		return err
 	}
-	return s.lessons.Delete(ctx, lessonID)
+	if err := s.lessons.Delete(ctx, lessonID); err != nil {
+		return err
+	}
+	s.cache.Delete(ctx, "lessons:course:"+lesson.CourseID.String())
+	return nil
 }
 
 func (s *CourseService) verifyOwnership(ctx context.Context, courseID, instructorID uuid.UUID) error {

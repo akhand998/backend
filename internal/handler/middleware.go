@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Amanyd/backend/internal/domain"
+	redisinfra "github.com/Amanyd/backend/internal/infra/redis"
 	"github.com/Amanyd/backend/pkg/apierr"
 	jwtpkg "github.com/Amanyd/backend/pkg/jwt"
 	"github.com/Amanyd/backend/pkg/logger"
@@ -75,6 +76,20 @@ func RequestLogger(log *zap.Logger) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r.WithContext(ctx))
 
 			reqLog.Info("request completed", zap.Duration("duration", time.Since(start)))
+		})
+	}
+}
+
+func RateLimitMiddleware(rl *redisinfra.RateLimiter, rate, burst int) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			claims := GetClaims(r)
+			allowed, err := rl.AllowRequest(r.Context(), "rl:"+claims.UserID.String(), rate, burst)
+			if err != nil || !allowed {
+				apierr.WriteJSON(w, apierr.TooManyRequests("rate limit exceeded"))
+				return
+			}
+			next.ServeHTTP(w, r)
 		})
 	}
 }

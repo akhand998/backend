@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/eulerbutcooler/wingman-backend/pkg/apierr"
+	"github.com/Amanyd/backend/pkg/apierr"
 	"github.com/go-playground/validator/v10"
 )
 

@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/eulerbutcooler/wingman-backend/internal/port"
+	"github.com/Amanyd/backend/internal/port"
 )
 
 type ragClient struct {

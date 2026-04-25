@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/eulerbutcooler/wingman-backend/internal/port"
+	"github.com/Amanyd/backend/internal/port"
 	"github.com/minio/minio-go/v7"
 )
 

@@ -3,7 +3,7 @@ package port
 import (
 	"context"
 
-	"github.com/eulerbutcooler/wingman-backend/internal/domain"
+	"github.com/Amanyd/backend/internal/domain"
 	"github.com/google/uuid"
 )
 

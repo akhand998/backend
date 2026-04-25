@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/eulerbutcooler/wingman-backend/internal/domain"
-	"github.com/eulerbutcooler/wingman-backend/internal/infra/postgres/gen"
-	"github.com/eulerbutcooler/wingman-backend/internal/port"
+	"github.com/Amanyd/backend/internal/domain"
+	"github.com/Amanyd/backend/internal/infra/postgres/gen"
+	"github.com/Amanyd/backend/internal/port"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"

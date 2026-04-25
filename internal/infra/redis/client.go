@@ -1,7 +1,7 @@
 package redis
 
 import (
-	"github.com/eulerbutcooler/wingman-backend/internal/config"
+	"github.com/Amanyd/backend/internal/config"
 	"github.com/redis/go-redis/v9"
 )
 

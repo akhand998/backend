@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/eulerbutcooler/wingman-backend/internal/config"
+	"github.com/Amanyd/backend/internal/config"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )

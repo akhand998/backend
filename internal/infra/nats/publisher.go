@@ -3,7 +3,7 @@ package nats
 import (
 	"context"
 
-	"github.com/eulerbutcooler/wingman-backend/internal/port"
+	"github.com/Amanyd/backend/internal/port"
 	"github.com/nats-io/nats.go/jetstream"
 )
 

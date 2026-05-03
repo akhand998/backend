@@ -103,7 +103,7 @@ func (q *Queries) GetStudentScores(ctx context.Context, courseID uuid.UUID) ([]G
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetStudentScoresRow
+	items := []GetStudentScoresRow{}
 	for rows.Next() {
 		var i GetStudentScoresRow
 		if err := rows.Scan(

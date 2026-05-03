@@ -55,7 +55,7 @@ func (r *courseRepo) ListAll(ctx context.Context) ([]domain.Course, error) {
         }
         defer rows.Close()
 
-        var courses []domain.Course
+        courses := []domain.Course{}
         for rows.Next() {
                 var c gen.Course
                 if err := rows.Scan(&c.ID, &c.Title, &c.Description, &c.Rank, &c.InstructorID, &c.CreatedAt, &c.UpdatedAt); err != nil {

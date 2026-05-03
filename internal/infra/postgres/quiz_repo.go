@@ -147,7 +147,7 @@ func (r *quizRepo) DeleteQuestionsByQuiz(ctx context.Context, quizID uuid.UUID) 
 }
 
 func toDomainQuestion(q gen.Question) (*domain.Question, error) {
-	var choices []domain.Choice
+	choices := []domain.Choice{}
 	if len(q.Choices) > 0 {
 		if err := json.Unmarshal(q.Choices, &choices); err != nil {
 			return nil, err

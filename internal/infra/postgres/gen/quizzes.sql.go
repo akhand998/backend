@@ -230,7 +230,7 @@ func (q *Queries) ListAnswersByAttempt(ctx context.Context, attemptID uuid.UUID)
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Answer
+	items := []Answer{}
 	for rows.Next() {
 		var i Answer
 		if err := rows.Scan(
@@ -260,7 +260,7 @@ func (q *Queries) ListQuestionsByQuiz(ctx context.Context, quizID uuid.UUID) ([]
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Question
+	items := []Question{}
 	for rows.Next() {
 		var i Question
 		if err := rows.Scan(
@@ -292,7 +292,7 @@ func (q *Queries) ListQuizzesByCourse(ctx context.Context, courseID uuid.UUID) (
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Quiz
+	items := []Quiz{}
 	for rows.Next() {
 		var i Quiz
 		if err := rows.Scan(

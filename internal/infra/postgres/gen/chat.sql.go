@@ -98,7 +98,7 @@ func (q *Queries) ListChatSessionsByUser(ctx context.Context, userID uuid.UUID) 
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ChatSession
+	items := []ChatSession{}
 	for rows.Next() {
 		var i ChatSession
 		if err := rows.Scan(
@@ -139,7 +139,7 @@ func (q *Queries) ListMessagesBySession(ctx context.Context, arg ListMessagesByS
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ChatMessage
+	items := []ChatMessage{}
 	for rows.Next() {
 		var i ChatMessage
 		if err := rows.Scan(

@@ -91,7 +91,7 @@ func (q *Queries) ListFilesByLesson(ctx context.Context, lessonID uuid.UUID) ([]
 		return nil, err
 	}
 	defer rows.Close()
-	var items []File
+	items := []File{}
 	for rows.Next() {
 		var i File
 		if err := rows.Scan(

@@ -83,7 +83,7 @@ func (q *Queries) ListCoursesByInstructor(ctx context.Context, instructorID uuid
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Course
+	items := []Course{}
 	for rows.Next() {
 		var i Course
 		if err := rows.Scan(
@@ -116,7 +116,7 @@ func (q *Queries) ListCoursesByRank(ctx context.Context, rank string) ([]Course,
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Course
+	items := []Course{}
 	for rows.Next() {
 		var i Course
 		if err := rows.Scan(

@@ -74,7 +74,7 @@ func (q *Queries) ListLessonsByCourse(ctx context.Context, courseID uuid.UUID) (
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Lesson
+	items := []Lesson{}
 	for rows.Next() {
 		var i Lesson
 		if err := rows.Scan(
